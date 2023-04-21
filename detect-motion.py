@@ -1,8 +1,19 @@
 import cv2
 import random
 import time
+import firebase_admin
 
-vcap = cv2.VideoCapture("rtsp://localhost:8554/test")
+from firebase_admin import credentials
+from firebase_admin import db
+
+firebase_admin.initialize_app(cred, {
+    'databaseURL': "URL to database"
+})
+
+ref = db.reference('ips/cam')
+print(ref.get())
+
+vcap = cv2.VideoCapture("rtsp://10.22.3.175:8554/mjpeg/1")
 
 def detectedMotion():
     print("motion" + str(random.randint(1, 2000)))
@@ -29,9 +40,8 @@ while 1:
         
         if cv2.contourArea(contour) < 5000:
             newTime = time.perf_counter()
-            if newTime - oldTime > 5:
-                oldTime = time.perf_counter()
-                detectedMotion()
+            oldTime = time.perf_counter()
+            detectedMotion()
             continue
         (x, y, w, h)=cv2.boundingRect(contour)
         cv2.rectangle(frame, (x, y), (x+w, y+h), (0,255,0), 1)
