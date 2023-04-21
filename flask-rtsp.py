@@ -9,11 +9,25 @@ import imutils
 import time
 import cv2
 
+import firebase_admin
+
+from firebase_admin import credentials
+from firebase_admin import db
+
+cred = credentials.Certificate("serviceAccountKey.json")
+firebase_admin.initialize_app(cred, {
+    "databaseURL": "https://survelliance-camera-77550-default-rtdb.europe-west1.firebasedatabase.app/"
+})
+
+ref = db.reference('ips/cam2')
+
+URL = ref.get()
 app = Flask(__name__)
 outputFrame = None
 lock = threading.Lock()
-vs = VideoStream(src="rtsp://10.22.3.64:8554/mjpeg/1").start()
+vs = VideoStream(src=URL).start()
 time.sleep(2.0)
+
 def generate_video():
     global vs
     frame = None
@@ -40,7 +54,6 @@ def video_feed():
 	# type (mime type)
 	return Response(generate_video(),
 		mimetype = "multipart/x-mixed-replace; boundary=frame")
-
 
 if __name__ == '__main__':
 	# construct the argument parser and parse command line arguments
