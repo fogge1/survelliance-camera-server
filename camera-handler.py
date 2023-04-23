@@ -1,4 +1,4 @@
-from imutils.video import VideoStream
+#from imutils.video import VideoStream
 from flask import Response
 from flask import Flask
 import imutils
@@ -10,8 +10,8 @@ import numpy as np
 import ctypes
 from threading import Thread
 
-SCREEN_HEIGHT = 300
-SCREEN_WIDTH = 400
+SCREEN_HEIGHT = 480
+SCREEN_WIDTH = 640
 
 app = Flask(__name__)
 # class videoStream (threading.Thread):
@@ -24,21 +24,22 @@ app = Flask(__name__)
 #         vs = VideoStream(src=self.videoUrl).start()
 #         getVideo(vs, self.threadID)
 
-outputFrames = []
 
-def getVideo(name, camURL, output):
+outputFrame = [np.ctypeslib.as_array(Array(ctypes.c_uint8, SCREEN_HEIGHT * SCREEN_WIDTH * 3).get_obj()).reshape(SCREEN_HEIGHT, SCREEN_WIDTH, 3), ]
+
+def getVideo(camURL, camID):
+    stream = cv2.VideoCapture(camURL)
+    stream.set(cv2.CAP_PROP_FPS, 30)
     
-    vs = VideoStream(src=camURL).start()
-    frame = None
     old_frame = None
     while 1:
-        frame = vs.read()
-        frame = imutils.resize(frame, width=400)
-        #timestamp = datetime.now()
-        #cv2.putText(frame, timestamp.strftime("%A %d %B %Y %I:%M:%S%p"), (10, frame.shape[0] -10), cv2.FONT_HERSHEY_SIMPLEX, 0.35, (0, 0, 255), 1)
+        _, frame = stream.read()
         
-        output[:] = frame.copy()
-
+        timestamp = datetime.now()
+        cv2.putText(frame, timestamp.strftime("%A %d %B %Y %I:%M:%S%p"), (10, frame.shape[0] -10), cv2.FONT_HERSHEY_SIMPLEX, 0.35, (0, 0, 255), 1)
+        
+        outputFrame[camID][:] = frame
+        
         gray_frame=cv2.cvtColor(frame,cv2.COLOR_BGR2GRAY)
         gray_frame=cv2.GaussianBlur(gray_frame,(25,25),0)
         
@@ -53,20 +54,26 @@ def getVideo(name, camURL, output):
 
         for contour in contours:
             if cv2.contourArea(contour) < 5000:
-                #print(f"detected motion on cam {name}")
+                #print(f"detected motion on cam {camID}")
                 continue    
 
 def generate_feed(camID):
     while 1:
-        frame = outputFrames[camID]
+        #frame = outputFrame
         
-        (flag, encodedImage) = cv2.imencode(".jpg", frame)
-        if not flag:
+        #(flag, encodedImage) = cv2.imencode(".jpg", frame)
+        #print(type(encodedImage))
+        #if not flag:
             
-            continue
+         #    continue
         # yield the output frame in the byte format
-        yield(b'--frame\r\n' b'Content-Type: image/jpeg\r\n\r\n' + 
-            bytearray(encodedImage) + b'\r\n')
+        # yield(b'--frame\r\n' b'Content-Type: image/jpeg\r\n\r\n' + 
+        #     bytearray(encodedImage) + b'\r\n')
+
+        yield (b'--frame\r\n'
+            # b'Content-Type: image/jpeg\r\n\r\n' + frame_bytes + b'\r\n\r\n')
+            b'Content-Type: image/jpeg\r\n\r\n' + cv2.imencode('.jpg', outputFrame[camID])[1].tobytes() + b'\r\n\r\n')
+
 
 @app.route('/video_feed/<int:cam>')
 def video_feed(cam):
@@ -84,16 +91,11 @@ if __name__ == "__main__":
 
     args = vars(ap.parse_args())
 
-    # thread1 = videoStream(0, "Thread-0", 0)
-    # outputFrames.append(None)
-    # thread1.start()
-    # thread2 = videoStream(1, "Thread-1", "rtsp://192.168.1.68:8554/mjpeg/1")
-    # outputFrames.append(None)
-    # thread2.start()
-    outputFrames = [np.ctypeslib.as_array(Array(ctypes.c_uint8, SCREEN_HEIGHT * SCREEN_WIDTH * 3).get_obj()).reshape(SCREEN_HEIGHT, SCREEN_WIDTH, 3)]
-    Process(target=getVideo, args=("webcam",0, outputFrames[0])).start()
-    # l = Process(target=getVideo, args=("esp", "rtsp://192.168.1.68:8554/mjpeg/1",))
-    # l.start()
+    cams = [0, "rtsp://192.168.1.68:8554/mjpeg/1"]
+    for i, cam in enumerate(cams):
+        outputFrame.append(np.ctypeslib.as_array(Array(ctypes.c_uint8, SCREEN_HEIGHT * SCREEN_WIDTH * 3).get_obj()).reshape(SCREEN_HEIGHT, SCREEN_WIDTH, 3))
+        Process(target=getVideo, args=(cam, i)).start()
+    
     #start flask app
     thread_flask = Thread(app.run(host=args["ip"], port=args["port"], debug=True, threaded=True, use_reloader=False))
     thread_flask.daemon = True
