@@ -13,9 +13,10 @@ import vonage
 import firebase_admin
 from firebase_admin import credentials
 from firebase_admin import db
+import socket
 
 
-client = vonage.Client(key="", secret="")
+client = vonage.Client(key="68184f1d", secret="NeXPMFdDSugGz1v7")
 sms = vonage.Sms(client)
 
 cred = credentials.Certificate("serviceAccountKey.json")
@@ -53,6 +54,8 @@ def getVideo(camURL, camID):
     first = True
     while 1:
         _, frame = stream.read()
+        if frame is None:
+            continue
         timestamp = datetime.now()
         cv2.putText(frame, timestamp.strftime("%A %d %B %Y %I:%M:%S%p"), (10, frame.shape[0] -10), cv2.FONT_HERSHEY_SIMPLEX, 0.35, (0, 0, 255), 1)
         
@@ -134,6 +137,10 @@ if __name__ == "__main__":
         help="# of frames used to construct the background model")
 
     args = vars(ap.parse_args())
+    
+    #hostname=socket.gethostname()   
+    IPAddr="10.22.5.251" #socket.gethostbyname(hostname)  
+
     cams = ref.get()
     #cams = [0, "rtsp://192.168.1.68:8554/mjpeg/1"]
     print(cams)
@@ -141,12 +148,17 @@ if __name__ == "__main__":
         # append default frame ; black screen
         if cam == 0: outputFrame.append(np.ctypeslib.as_array(Array(ctypes.c_uint8, 480 * 848 * 3).get_obj()).reshape(480, 848, 3))
         else : outputFrame.append(np.ctypeslib.as_array(Array(ctypes.c_uint8, SCREEN_HEIGHT * SCREEN_WIDTH * 3).get_obj()).reshape(SCREEN_HEIGHT, SCREEN_WIDTH, 3))
+        
+        frontendRef = db.reference(f"cameras/{i}/ip")
+        frontendRef.set(IPAddr+f":5000/video_feed/{i}")
+        print(IPAddr)
         # append to available cams array
         avail_cams.append(i)
+        
         # start a process for every video 
         Process(target=getVideo, args=(cam, i)).start()
     
     #start flask app
     thread_flask = Thread(app.run(host=args["ip"], port=args["port"], debug=True, threaded=True, use_reloader=False))
     thread_flask.daemon = True
-    thread_flask.start()
+    thread_flask.start()    
